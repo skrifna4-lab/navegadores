@@ -57,5 +57,5 @@ app.post("/scrape", async (req, res) => {
 });
 
 app.listen(6530, () => {
-    console.log("API running on port 3000");
+    console.log("API running on port 6530");
 });
