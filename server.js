@@ -5,11 +5,15 @@ import PQueue from "p-queue";
 
 const app = express();
 
-// habilitar CORS
 app.use(cors());
-
 app.use(express.json());
 
+// endpoint test
+app.get("/", (req, res) => {
+    res.send("SCRAPER OK");
+});
+
+// cola de 3 navegadores simultáneos
 const queue = new PQueue({ concurrency: 3 });
 
 app.post("/scrape", async (req, res) => {
@@ -19,31 +23,39 @@ app.post("/scrape", async (req, res) => {
         return res.status(400).json({ error: "url required" });
     }
 
-    queue.add(async () => {
-        const browser = await chromium.launch({
-            args: ["--no-sandbox"]
+    try {
+
+        const result = await queue.add(async () => {
+
+            const browser = await chromium.launch({
+                args: ["--no-sandbox"]
+            });
+
+            const page = await browser.newPage();
+            await page.goto(url, { waitUntil: "domcontentloaded" });
+
+            let data;
+
+            if (script) {
+                data = await page.evaluate(script);
+            } else {
+                data = await page.title();
+            }
+
+            await browser.close();
+            return data;
         });
-
-        const page = await browser.newPage();
-        await page.goto(url);
-
-        let result;
-
-        if (script) {
-            result = await page.evaluate(script);
-        } else {
-            result = await page.title();
-        }
-
-        await browser.close();
 
         res.json({
             success: true,
             data: result
         });
-    });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-app.listen(3000, () => {
-    console.log("API running on 3000");
+app.listen(6530, () => {
+    console.log("API running on port 3000");
 });
