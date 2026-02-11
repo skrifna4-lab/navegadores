@@ -19,43 +19,37 @@ const queue = new PQueue({ concurrency: 3 });
 app.post("/scrape", async (req, res) => {
     const { url, script } = req.body;
 
-    if (!url) {
-        return res.status(400).json({ error: "url required" });
+    if (!url || !script) {
+        return res.status(400).json({ error: "url and script are required" });
     }
 
     try {
-
         const result = await queue.add(async () => {
-
-            const browser = await chromium.launch({
-                args: ["--no-sandbox"]
-            });
-
+            const browser = await chromium.launch({ args: ["--no-sandbox"] });
             const page = await browser.newPage();
-            await page.goto(url, { waitUntil: "domcontentloaded" });
+            await page.goto(url, { waitUntil: "networkidle" });
 
-            let data;
+            // Esta es la clave: Convertimos el texto recibido en una función ejecutable
+            // Pasamos 'page' y 'browser' para que el script tenga control total.
+            const dynamicScript = new Function('page', 'browser', `
+                return (async () => {
+                    ${script}
+                })();
+            `);
 
-            if (script) {
-                data = await page.evaluate(script);
-            } else {
-                data = await page.title();
-            }
+            const data = await dynamicScript(page, browser);
 
             await browser.close();
             return data;
         });
 
-        res.json({
-            success: true,
-            data: result
-        });
+        res.json({ success: true, data: result });
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error(err);
+        res.status(500).json({ success: false, error: err.message });
     }
 });
-
 app.listen(6530, () => {
     console.log("API running on port 6530");
 });
